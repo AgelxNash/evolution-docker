@@ -1,0 +1,86 @@
+version: '3'
+name: ${PROJECT_NAME}
+
+volumes:
+  db_data:
+
+services:
+  nginx:
+    user: ${UID:-1000}
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+      args:
+        - UID=${UID:-1000}
+        - GID=${GID:-1000}
+    ports:
+      - "${PORT_NGINX}:80"
+    volumes_from:
+      - cms
+    depends_on:
+      - cms
+    healthcheck:
+      test: service nginx status || exit 1
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: always
+
+  cms:
+    build:
+      context: ./cms
+      dockerfile: Dockerfile
+      args:
+        - UID=${UID:-1000}
+        - GID=${GID:-1000}
+    volumes:
+      - ./../${PROJECT_NAME}:/var/www/html/public:delegated
+    environment:
+      DB_HOST: database
+    restart: always
+    depends_on:
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    restart: unless-stopped
+    logging:
+      driver: 'none'  # disable saving logs
+    ports:
+      #- "11025:1025" # smtp server
+      - "${PORT_MAILHOG}:8025" # web ui
+
+  redis:
+    image: redis:alpine
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "redis-cli", "--raw", "incr", "ping" ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "${PORT_REDIS}:6379"
+
+  database:
+    build:
+      context: ./mysql
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    volumes:
+      - ./mysql/lib:/var/lib/mysql
+      - ./mysql/init:/init
+    ports:
+      - "${PORT_MYSQL}:3306"
+    command: --init-file /init/install.sql
+    healthcheck:
+      test: [ "CMD", "mysqladmin" ,"ping", "-h", "localhost", "-uroot", "-p${MYSQL_PASSWORD}" ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD}
+      SERVICE_TAGS: dev
+      SERVICE_NAME: mysql
