@@ -27,7 +27,7 @@ RUN sed -i "s/user = www-data/user = evolution/g" /usr/local/etc/php-fpm.d/www.c
 RUN sed -i "s/group = www-data/group = evolution/g" /usr/local/etc/php-fpm.d/www.conf
 RUN echo "php_admin_flag[log_errors] = on" >> /usr/local/etc/php-fpm.d/www.conf
 
-RUN docker-php-ext-install pdo pdo_mysql bcmath \
+RUN docker-php-ext-install pdo pdo_mysql mysqli bcmath \
     && docker-php-ext-enable bcmath
 
 RUN docker-php-ext-configure gd --enable-gd --with-freetype --with-jpeg --with-webp \
